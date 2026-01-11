@@ -1,20 +1,24 @@
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+import express from 'express';
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+import { PORT } from './config/env.js';
 
-var app = express();
+import userRouter from './routes/user.route.js';
+import authRouter from './routes/auth.routes.js';
+import subscriptionRouter from './routes/subscription.routes.js';
 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+const app = express();
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/users', userRouter);
+app.use('/api/v1/subscriptions', subscriptionRouter);
 
-module.exports = app;
+app.get('/', (req, res) => {
+    res.send('Welcome to the Subscription Tracker API');
+});
+
+
+app.listen(PORT, () => {
+    console.log(`Subscription Tracker API is running on http://localhost:${PORT}`);
+});
+
+export default app
