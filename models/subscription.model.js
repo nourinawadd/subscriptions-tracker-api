@@ -10,7 +10,7 @@ const subscriptionSchema = new mongoose.Schema({
     },
     price: {
         type: Number,
-        required, [true, 'Subscription price is required'],
+        required: [true, 'Subscription price is required'],
         min: [0, 'Price must be greater than 0'],
         max: [1000, 'Price must be less than 1000'],
     },
