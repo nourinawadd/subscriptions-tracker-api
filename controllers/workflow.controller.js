@@ -2,6 +2,7 @@ import { createRequire } from 'module';
 import Subscription from '../models/subscription.model.js';
 import dayjs from 'dayjs';
 import { sendReminderEmail } from '../utils/send-email.js';
+import { now } from 'mongoose';
 
 const REMINDERS = [7, 5, 2, 1];
 const require = createRequire(import.meta.url);
@@ -26,7 +27,9 @@ export const sendReminders = serve(async (context) => {
             await sleepUntilReminder(context, `Reminder ${daysBefore} days before`, reminderDate);
         }
 
-        await triggerReminder(context, `${daysBefore} days before reminder`, subscription);
+        if (dayjs.isSame(reminderDate, 'day')) {
+            await triggerReminder(context, `${daysBefore} days before reminder`, subscription);
+        }
     }
 });
 
