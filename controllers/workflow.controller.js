@@ -1,15 +1,15 @@
 import { createRequire } from 'module';
-import Subscription from '../models/subscription.model';
+import Subscription from '../models/subscription.model.js';
 import dayjs from 'dayjs';
-import { sendReminderEmail } from '../utils/send-email';
+import { sendReminderEmail } from '../utils/send-email.js';
 
 const REMINDERS = [7, 5, 2, 1];
 const require = createRequire(import.meta.url);
-const { serve } = require('@upstash/workflows/express');
+const { serve } = require('@upstash/workflow/express');
 
 export const sendReminders = serve(async (context) => {
     const { subscriptionId } = context.requestPayload;
-    const subscription =  await fetchSubscription(context, subscriptionId);
+    const subscription = await fetchSubscription(context, subscriptionId);
 
     if (!subscription || subscription.status !== 'active') return;
 
@@ -26,7 +26,7 @@ export const sendReminders = serve(async (context) => {
             await sleepUntilReminder(context, `Reminder ${daysBefore} days before`, reminderDate);
         }
 
-        await triggerReminder(context, `Reminder ${daysBefore} days before`);
+        await triggerReminder(context, `${daysBefore} days before reminder`, subscription);
     }
 });
 
@@ -36,17 +36,18 @@ const fetchSubscription = async (context, subscriptionId) => {
     })
 }
 
-const sleepUntilReminder = async(context, MongoErrorLabel, date) => {
-    console.log(`Sleeping until ${label} reminder at ${date.toISOString()}`);
+const sleepUntilReminder = async(context, label, date) => {
+    console.log(`Sleeping until ${label} reminder at ${date}`);
     await context.sleepUntil(label, date.toDate());
 }
 
-const triggerReminder = async (context, label) => {
+const triggerReminder = async (context, label, subscription) => {
     return await context.run(label, async () => {
         console.log(`Triggering ${label} reminder`);
         await sendReminderEmail({
             to: subscription.user.email,
-            type: 'subscription-renewal-reminder',
+            type: label,
+            subscription: subscription
         })
     })
 }
