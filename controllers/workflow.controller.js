@@ -1,6 +1,7 @@
 import { createRequire } from 'module';
 import Subscription from '../models/subscription.model';
 import dayjs from 'dayjs';
+import { sendReminderEmail } from '../utils/send-email';
 
 const REMINDERS = [7, 5, 2, 1];
 const require = createRequire(import.meta.url);
@@ -41,8 +42,11 @@ const sleepUntilReminder = async(context, MongoErrorLabel, date) => {
 }
 
 const triggerReminder = async (context, label) => {
-    return await context.run(label, () => {
+    return await context.run(label, async () => {
         console.log(`Triggering ${label} reminder`);
-        // Send email, SMS, push notification, etc.
+        await sendReminderEmail({
+            to: subscription.user.email,
+            type: 'subscription-renewal-reminder',
+        })
     })
 }
