@@ -1,0 +1,774 @@
+openapi: 3.0.3
+info:
+  title: Subscription Tracker API
+  description: |
+    A RESTful API for managing subscription services with automated email reminders.
+    
+    ## Features
+    - JWT-based authentication
+    - Full CRUD operations for subscriptions
+    - Automated renewal reminders
+    - Multi-currency support
+    - Rate limiting and bot protection
+    
+    ## Authentication
+    Most endpoints require a JWT token. Include it in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+  version: 1.0.0
+  contact:
+    email: nourinawad@gmail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5500/api/v1
+    description: Development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User management operations
+  - name: Subscriptions
+    description: Subscription management operations
+  - name: Workflows
+    description: Workflow and reminder endpoints
+  - name: Health
+    description: System health checks
+
+paths:
+  /auth/sign-up:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  example: John Doe
+                email:
+                  type: string
+                  format: email
+                  example: john@example.com
+                password:
+                  type: string
+                  minLength: 6
+                  example: securePassword123
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User created successfully
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      user:
+                        $ref: '#/components/schemas/User'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/sign-in:
+    post:
+      tags:
+        - Authentication
+      summary: Sign in user
+      description: Authenticate user and receive JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john@example.com
+                password:
+                  type: string
+                  example: securePassword123
+      responses:
+        '200':
+          description: User signed in successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User signed in successfully
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/sign-out:
+    post:
+      tags:
+        - Authentication
+      summary: Sign out user
+      description: Sign out the current user (client should remove token)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User signed out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User signed out successfully
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      description: Retrieve a list of all users (admin only in production)
+      responses:
+        '200':
+          description: List of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      description: Retrieve a specific user by their ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Update user information (own profile only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  example: John Updated
+                email:
+                  type: string
+                  format: email
+                  example: john.updated@example.com
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '403':
+          description: Unauthorized to update this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete user account and all associated subscriptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User and all subscriptions deleted successfully
+
+  /subscriptions:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get all subscriptions
+      description: Retrieve all subscriptions (admin only)
+      responses:
+        '200':
+          description: List of subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 25
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+    
+    post:
+      tags:
+        - Subscriptions
+      summary: Create subscription
+      description: Create a new subscription and trigger automated reminders
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInput'
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Subscription'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /subscriptions/{id}:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription by ID
+      description: Retrieve a specific subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subscription ID
+      responses:
+        '200':
+          description: Subscription retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    put:
+      tags:
+        - Subscriptions
+      summary: Update subscription
+      description: Update subscription details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subscription ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionInput'
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Subscription'
+    
+    delete:
+      tags:
+        - Subscriptions
+      summary: Delete subscription
+      description: Delete a subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subscription ID
+      responses:
+        '200':
+          description: Subscription deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Subscription deleted successfully
+
+  /subscriptions/{id}/cancel:
+    put:
+      tags:
+        - Subscriptions
+      summary: Cancel subscription
+      description: Cancel an active subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subscription ID
+      responses:
+        '200':
+          description: Subscription canceled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Subscription canceled successfully
+                  data:
+                    $ref: '#/components/schemas/Subscription'
+
+  /subscriptions/user/{userId}:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get user subscriptions
+      description: Get all subscriptions for a specific user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: User subscriptions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 5
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+
+  /subscriptions/upcoming-renewals:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get upcoming renewals
+      description: Get subscriptions with upcoming renewal dates
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Number of days to look ahead
+      responses:
+        '200':
+          description: Upcoming renewals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 3
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+
+  /workflows/subscription/reminder:
+    post:
+      tags:
+        - Workflows
+      summary: Trigger reminder workflow
+      description: Internal endpoint for Upstash Workflow to process reminders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscriptionId:
+                  type: string
+                  example: 507f1f77bcf86cd799439011
+      responses:
+        '200':
+          description: Workflow triggered successfully
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check API health status
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: API is running
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 3600.5
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter your JWT token
+
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Subscription:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        name:
+          type: string
+          example: Netflix
+        price:
+          type: number
+          example: 15.99
+        currency:
+          type: string
+          enum: [USD, EGP, KWD, EUR, GBP]
+          example: USD
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, yearly]
+          example: monthly
+        category:
+          type: string
+          enum: [entertainment, education, productivity, health, other]
+          example: entertainment
+        paymentMethod:
+          type: string
+          example: Credit Card
+        status:
+          type: string
+          enum: [active, paused, canceled, expired]
+          example: active
+        startDate:
+          type: string
+          format: date
+          example: 2024-01-01
+        renewalDate:
+          type: string
+          format: date
+          example: 2024-02-01
+        user:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SubscriptionInput:
+      type: object
+      required:
+        - name
+        - price
+        - currency
+        - frequency
+        - category
+        - paymentMethod
+        - startDate
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Netflix
+        price:
+          type: number
+          minimum: 0
+          maximum: 1000
+          example: 15.99
+        currency:
+          type: string
+          enum: [USD, EGP, KWD, EUR, GBP]
+          example: USD
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, yearly]
+          example: monthly
+        category:
+          type: string
+          enum: [entertainment, education, productivity, health, other]
+          example: entertainment
+        paymentMethod:
+          type: string
+          example: Credit Card
+        status:
+          type: string
+          enum: [active, paused, canceled, expired]
+          example: active
+        startDate:
+          type: string
+          format: date
+          example: 2024-01-01
+        renewalDate:
+          type: string
+          format: date
+          example: 2024-02-01
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Error message
+        message:
+          type: string
+          example: Detailed error message
