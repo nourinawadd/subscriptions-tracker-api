@@ -1,6 +1,7 @@
 import { workflowClient } from '../config/upstash.js';
 import Subscription from '../models/subscription.model.js';
 import { SERVER_URL } from '../config/env.js';
+import dayjs from 'dayjs';
 
 export const createSubscription = async (req, res, next) => {
     try {
@@ -66,6 +67,32 @@ export const getAllSubscriptions = async (req, res, next) => {
             success: true,
             data: subscriptions
         })
+    }
+    catch(e) {
+        next(e);
+    }
+}
+
+export const getUpcomingRenewals = async (req, res, next) => {
+    try {
+        const today = dayjs();
+        const upcomingRenewals = await Subscription.find({
+            renewalDate: {
+                $gte: today.toDate(),
+                $lte: today.add(7, 'day').toDate()
+            }
+        }).populate('user', 'name email');
+
+        if (!upcomingRenewals) {
+            const error = new Error('No upcoming renewals found.');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: upcomingRenewals
+        });
     }
     catch(e) {
         next(e);
