@@ -29,22 +29,19 @@ export const createSubscription = async (req, res, next) => {
 
 export const getUserSubscriptions = async (req, res, next) => {
     try {
-        if(req.user.id !== req.params.userId) {
+        if(req.user._id.toString() !== req.params.userId) {
             const error = new Error('You are not the owner of the account');
             error.statusCode = 403;
             throw error;
         }
 
-        const subscriptions = await Subscription.find({ user: req.user._id });
+        const subscriptions = await Subscription.find({ user: req.user._id })
+            .sort({ renewalDate: 1 }); // Sort by renewal date
 
-        if (!subscriptions) {
-            const error = new Error('No subscriptions found for this user');
-            error.statusCode = 404;
-            throw error;
-        }
-
+        // Don't throw error if empty array - empty is valid
         res.status(200).json({
             success: true,
+            count: subscriptions.length,
             data: subscriptions
         });
     } 
@@ -75,23 +72,156 @@ export const getAllSubscriptions = async (req, res, next) => {
 
 export const getUpcomingRenewals = async (req, res, next) => {
     try {
+        const daysAhead = parseInt(req.query.days) || 30; // Default 30 days
         const today = dayjs();
+        
         const upcomingRenewals = await Subscription.find({
+            user: req.user._id, 
+            status: 'active',
             renewalDate: {
                 $gte: today.toDate(),
-                $lte: today.add(7, 'day').toDate()
+                $lte: today.add(daysAhead, 'day').toDate()
             }
-        }).populate('user', 'name email');
+        })
+        .populate('user', 'name email')
+        .sort({ renewalDate: 1 }); // Soonest first
 
-        if (!upcomingRenewals) {
-            const error = new Error('No upcoming renewals found.');
+        res.status(200).json({
+            success: true,
+            count: upcomingRenewals.length,
+            data: upcomingRenewals
+        });
+    }
+    catch(e) {
+        next(e);
+    }
+}
+
+export const getSubscriptionById = async (req, res, next) => {
+    try {
+        const subscription = await Subscription.findById(req.params.id)
+            .populate('user', 'name email');
+
+        if (!subscription) {
+            const error = new Error('Subscription not found');
             error.statusCode = 404;
+            throw error;
+        }
+
+        if (subscription.user._id.toString() !== req.user._id.toString()) {
+            const error = new Error('Unauthorized to view this subscription');
+            error.statusCode = 403;
             throw error;
         }
 
         res.status(200).json({
             success: true,
-            data: upcomingRenewals
+            data: subscription
+        });
+    }
+    catch(e) {
+        next(e);
+    }
+}
+
+export const updateSubscription = async (req, res, next) => {
+    try {
+        const subscription = await Subscription.findById(req.params.id);
+
+        if (!subscription) {
+            const error = new Error('Subscription not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        if (subscription.user.toString() !== req.user._id.toString()) {
+            const error = new Error('Unauthorized to update this subscription');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        delete req.body.user;
+
+        // Update subscription
+        const updatedSubscription = await Subscription.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { 
+                new: true, // Return updated document
+                runValidators: true // Run schema validation
+            }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Subscription updated successfully',
+            data: updatedSubscription
+        });
+    }
+    catch(e) {
+        next(e);
+    }
+}
+
+export const deleteSubscription = async (req, res, next) => {
+    try {
+        const subscription = await Subscription.findById(req.params.id);
+
+        if (!subscription) {
+            const error = new Error('Subscription not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        if (subscription.user.toString() !== req.user._id.toString()) {
+            const error = new Error('Unauthorized to delete this subscription');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        await Subscription.findByIdAndDelete(req.params.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Subscription deleted successfully'
+        });
+    }
+    catch(e) {
+        next(e);
+    }
+}
+
+export const cancelSubscription = async (req, res, next) => {
+    try {
+        const subscription = await Subscription.findById(req.params.id);
+
+        if (!subscription) {
+            const error = new Error('Subscription not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        if (subscription.user.toString() !== req.user._id.toString()) {
+            const error = new Error('Unauthorized to cancel this subscription');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        // Check if already cancelled
+        if (subscription.status === 'canceled') {
+            const error = new Error('Subscription is already canceled');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // Update status to cancelled
+        subscription.status = 'canceled';
+        await subscription.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Subscription canceled successfully',
+            data: subscription
         });
     }
     catch(e) {
