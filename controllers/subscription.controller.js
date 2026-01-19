@@ -51,3 +51,23 @@ export const getUserSubscriptions = async (req, res, next) => {
         next(e);
     }
 }
+
+export const getAllSubscriptions = async (req, res, next) => {
+
+    try {
+        const subscriptions = await Subscription.find().populate('user', 'name email');
+        if (!subscriptions) {
+            const error = new Error('No subscriptions found.');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: subscriptions
+        })
+    }
+    catch(e) {
+        next(e);
+    }
+}
